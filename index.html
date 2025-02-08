@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leitor de Código de Barras</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        #interactive {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            border: 2px solid #000;
+            margin: 10px auto;
+            display: block;
+        }
+        #barcode {
+            font-size: 20px;
+            margin-top: 10px;
+        }
+        #savedCodes {
+            margin-top: 20px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        button {
+            padding: 10px 15px;
+            margin: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Leitor de Código de Barras</h1>
+    <video id="interactive" autoplay playsinline></video>
+    <p id="barcode">Aguardando código...</p>
+    <button onclick="clearSavedCodes()">Limpar Códigos</button>
+    <button onclick="exportCSV()">Exportar CSV</button>
+    <div id="savedCodes">
+        <h2>Códigos Capturados:</h2>
+        <ul id="codeList"></ul>
+    </div>
+    <script>
+        let scannedCodes = [];
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(function(stream) {
+                document.getElementById("interactive").srcObject = stream;
+                Quagga.init({
+                    inputStream: {
+                        type: "LiveStream",
+                        constraints: {
+                            facingMode: "environment"
+                        },
+                        target: document.querySelector("#interactive")
+                    },
+                    decoder: {
+                        readers: ["ean_reader", "code_128_reader"]
+                    }
+                }, function(err) {
+                    if (err) {
+                        console.error("Erro ao iniciar Quagga:", err);
+                        return;
+                    }
+                    Quagga.start();
+                });
+            })
+            .catch(function(err) {
+                console.error("Erro ao acessar a câmera:", err);
+                document.querySelector("#barcode").innerText = "Erro: Permissão negada para acessar a câmera.";
+            });
+
+        Quagga.onDetected(function(result) {
+            let code = result.codeResult.code;
+            document.querySelector("#barcode").innerText = "Código: " + code;
+            if (!scannedCodes.some(item => item.codigo === code)) {
+                scannedCodes.push({ codigo: code, pinpad: "", rede: "" });
+                let li = document.createElement("li");
+                li.textContent = code;
+                document.querySelector("#codeList").appendChild(li);
+            }
+        });
+
+        function clearSavedCodes() {
+            scannedCodes = [];
+            document.querySelector("#codeList").innerHTML = "";
+        }
+
+        function exportCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,Código,PINPAD,REDE\n";
+            scannedCodes.forEach(item => {
+                csvContent += `${item.codigo},${item.pinpad},${item.rede}\n`;
+            });
+            let encodedUri = encodeURI(csvContent);
+            let link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "codigos_barras.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
