@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leitor de Código de Barras</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <style>
+        #interactive { width: 100%; height: auto; }
+        #barcode { font-size: 20px; margin-top: 10px; }
+        #savedCodes { margin-top: 20px; }
+        ul { list-style-type: none; padding: 0; }
+    </style>
+</head>
+<body>
+    <h1>Leitor de Código de Barras</h1>
+    <video id="interactive" autoplay playsinline></video>
+    <p id="barcode">Aguardando código...</p>
+    <button onclick="clearSavedCodes()">Limpar Códigos</button>
+    <button onclick="exportCSV()">Exportar CSV</button>
+    <div id="savedCodes">
+        <h2>Códigos Capturados:</h2>
+        <ul id="codeList"></ul>
+    </div>
+    <script>
+        let scannedCodes = [];
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(function(stream) {
+                document.getElementById("interactive").srcObject = stream;
+                Quagga.init({
+                    inputStream: {
+                        type: "LiveStream",
+                        constraints: {
+                            facingMode: "environment"
+                        },
+                        target: document.querySelector("#interactive")
+                    },
+                    decoder: {
+                        readers: ["ean_reader", "code_128_reader"]
+                    }
+                }, function(err) {
+                    if (err) {
+                        console.error("Erro ao iniciar Quagga:", err);
+                        return;
+                    }
+                    Quagga.start();
+                });
+            })
+            .catch(function(err) {
+                console.error("Erro ao acessar a câmera:", err);
+                document.querySelector("#barcode").innerText = "Erro: Permissão negada para acessar a câmera.";
+            });
+
+        Quagga.onDetected(function(result) {
+            let code = result.codeResult.code;
+            document.querySelector("#barcode").innerText = "Código: " + code;
+            if (!scannedCodes.some(item => item.codigo === code)) {
+                scannedCodes.push({ codigo: code, pinpad: "", rede: "" });
+                let li = document.createElement("li");
+                li.textContent = code;
+                document.querySelector("#codeList").appendChild(li);
+            }
+        });
+
+        function clearSavedCodes() {
+            scannedCodes = [];
+            document.querySelector("#codeList").innerHTML = "";
+        }
+
+        function exportCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,Código,PINPAD,REDE\n";
+            scannedCodes.forEach(item => {
+                csvContent += `${item.codigo},${item.pinpad},${item.rede}\n`;
+            });
+            let encodedUri = encodeURI(csvContent);
+            let link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "codigos_barras.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
